@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./jwt_audit/src"
+    ]
+}

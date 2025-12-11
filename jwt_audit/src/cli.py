@@ -5,8 +5,71 @@ JWT安全审计工具命令行接口
 
 import click
 import json
-from .auditor import JWTAuditor, print_audit_report
+import sys
+import os
 
+# ========== 健壮的导入处理 ==========
+def import_auditor_modules():
+    """安全导入审计模块，支持多种运行方式"""
+    import_error = None
+    
+    # 方法1: 相对导入（作为模块运行时）
+    try:
+        from .auditor import JWTAuditor, print_audit_report, decode_jwt
+        return JWTAuditor, print_audit_report, decode_jwt, None
+    except ImportError as e:
+        import_error = e
+    
+    # 方法2: 绝对导入（直接运行时）
+    try:
+        # 获取项目根目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))  # jwt_audit的父目录
+        
+        # 添加项目根目录到路径
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        
+        from jwt_audit.src.auditor import JWTAuditor, print_audit_report, decode_jwt
+        return JWTAuditor, print_audit_report, decode_jwt, None
+        
+    except ImportError as e:
+        import_error = e
+    
+    # 方法3: 最后尝试，直接导入当前目录
+    try:
+        # 添加src目录到路径
+        src_dir = os.path.dirname(os.path.abspath(__file__))
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        
+        from auditor import JWTAuditor, print_audit_report, decode_jwt
+        return JWTAuditor, print_audit_report, decode_jwt, None
+        
+    except ImportError as e:
+        return None, None, None, f"所有导入方式都失败: {import_error}"
+
+# 执行导入
+JWTAuditor, print_audit_report, decode_jwt, import_error = import_auditor_modules()
+
+if import_error:
+    # 如果导入失败，创建占位函数
+    class DummyAuditor:
+        def __init__(self):
+            self.detectors = []
+        
+        def audit(self, token):
+            return {
+                'success': False, 
+                'error': f'模块导入失败: {import_error}',
+                'jwt_token': token
+            }
+    
+    JWTAuditor = DummyAuditor
+    print_audit_report = lambda x: print(f"❌ 审计报告不可用: {import_error}")
+    decode_jwt = lambda x: ({}, {}, '')
+    
+    
 @click.group()
 def cli():
     """JWT安全审计工具 - 检测JWT令牌中的安全漏洞"""
@@ -90,7 +153,7 @@ def batch(file, format):
                                if r.get('success', False) and 
                                r.get('summary', {}).get('vulnerabilities_found', 0) > 0]
             
-        if vulnerable_tokens:
+            if vulnerable_tokens:
                 click.echo(f"\n🔴 存在漏洞的令牌:")
                 for result in vulnerable_tokens:
                     click.echo(f"   {result['jwt_short']} - 评分: {result['security_score']}/100")
