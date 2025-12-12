@@ -12,7 +12,7 @@ setup(
     description="A professional JWT security vulnerability scanner",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/zebra-king/Cryptography",
+    url="https://github.com/zebra-king/JWT",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     classifiers=[
